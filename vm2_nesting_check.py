@@ -146,7 +146,7 @@ def assess_version(package_version="", *, version_candidates=None, build_source=
 PRECONDITION_KEYS = tuple(key for key, _ in PRECONDITIONS)
 OBSERVATIONS = {True: "reported_true", False: "reported_false", None: "not_reported"}
 INVENTORY_FIELDS = {"schema_version", "package", "label", "package_version", "build_source", *PRECONDITION_KEYS}
-CSV_COLUMNS = ["input_label", "input_source", "package_version", "build_source", "status", "version_status", "fixed_version",
+CSV_COLUMNS = ["record_type", "input_label", "input_source", "package_version", "build_source", "status", "version_status", "fixed_version",
                "exploitability", "evidence_type", "evidence_confidence", "cve", "rules_as_of", *[f"precondition_{key}" for key in PRECONDITION_KEYS],
                "recommendation", "notes", "sources", "report_schema_version", "report_complete"]
 STATUS_ORDER = {"potentially_affected": 0, "unknown": 2, "fixed_version_reported": 3}
@@ -420,7 +420,11 @@ def write_report(output, rows, *, format="csv", brand="CompleteTech LLC", comple
         writer = csv.DictWriter(output, fieldnames=CSV_COLUMNS, lineterminator="\n", quoting=csv.QUOTE_ALL)
         writer.writeheader()
         for row in rows:
-            writer.writerow({**{key: csv_safe(row.get(key)) for key in CSV_COLUMNS}, "report_complete": "true" if complete else "false"})
+            writer.writerow({**{key: csv_safe(row.get(key)) for key in CSV_COLUMNS}, "record_type": "result", "report_complete": "true" if complete else "false"})
+        if not rows:
+            writer.writerow({"record_type": "summary", "report_complete": "true" if complete else "false",
+                             "report_schema_version": REPORT_SCHEMA_VERSION, "rules_as_of": RULES_DATE,
+                             "cve": CVE_ID, "exploitability": "not_tested"})
     elif format == "json":
         json.dump({"tool": TOOL_NAME, "tool_version": TOOL_VERSION, "report_schema_version": REPORT_SCHEMA_VERSION,
                    "cve": CVE_ID, "rules_as_of": RULES_DATE, "sources": list(SOURCES), "complete": complete,

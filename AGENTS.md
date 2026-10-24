@@ -12,7 +12,7 @@ The repository contains the offline checker `vm2_nesting_check.py`, synthetic te
 
 ## Project map
 
-- `advisory.json`: source-preserving research record; detection is disabled.
+- `advisory.json`: enabled offline rule metadata with preserved research origin.
 - `README.md`: exact scope, advisory snapshot, primary sources, and current status.
 - `docs/IMPLEMENTATION.md`: local implementation and verification checklist.
 - `LICENSING.md`, `CONTRIBUTING.md`, `BRAND_ASSETS.md`: licensing and contribution terms.
@@ -41,8 +41,8 @@ disabled until a real implementation is reviewed and tested.
 
 ## Validation and delivery
 
-Use focused synthetic cases and local-only fixtures for meaningful behavior tests
-once code exists. Do not invent passing tests, add prose-only tests, or publish
+Use focused synthetic cases and local-only fixtures for meaningful behavior tests.
+Do not invent passing tests, add prose-only tests, or publish
 private assessments. Keep CLI, schemas, methodology, and README aligned. Distinguish
 local results from hosted CI on the exact published commit. Preserve unrelated
 work and follow the licensing and brand policies linked above.
