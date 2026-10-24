@@ -1,0 +1,40 @@
+{
+  "id": "CVE-2026-92935",
+  "aliases": [
+    "GHSA-8hr7-r645-pc6w"
+  ],
+  "slug": "vm2-nesting-check",
+  "title": "vm2 array-shaped require nesting escape",
+  "packages": [
+    "vm2"
+  ],
+  "affected": ">=3.11.4 <=3.11.6",
+  "fixed": "3.11.7",
+  "published": "2026-08-24",
+  "preconditions": [
+    "NodeVM nesting enabled",
+    "require configuration is array-shaped",
+    "attacker-supplied JavaScript executed"
+  ],
+  "notes": [
+    "The database maps this CVE to the canonical GHSA; maintainer page still shows no known CVE. Report's September 17 date is not the canonical publication date. Versions below 3.11.4 may have other vulnerabilities but are outside this precise advisory."
+  ],
+  "sources": [
+    "https://github.com/patriksimek/vm2/security/advisories/GHSA-8hr7-r645-pc6w",
+    "https://github.com/advisories/GHSA-8hr7-r645-pc6w"
+  ],
+  "verification": "verified",
+  "category": "Packages",
+  "status": "new",
+  "implementation_status": "planned",
+  "verified_at": "2026-10-23",
+  "repository_url": "https://github.com/CompleteTech-LLC/vm2-nesting-check",
+  "schema_version": "1.0",
+  "record_type": "research_only",
+  "detection_enabled": false,
+  "implementation_complete": false,
+  "assessment_performed": false,
+  "exploitability": "not_tested",
+  "scope_policy": "One distinct exploit per repository; aliases and affected products share this scope.",
+  "research_notice": "Source research for a planned checker; not an executable rule or assessment result."
+}
