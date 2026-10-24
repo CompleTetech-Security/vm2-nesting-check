@@ -54,3 +54,5 @@ Exit 0: completed run; 1: potentially affected with `--fail-on-finding`; 2: argu
 [Synthetic report](docs/example-report.html), [reference](docs/REFERENCE.md), [implementation status](docs/IMPLEMENTATION.md), [AGENTS](AGENTS.md), [contribution terms](CONTRIBUTING.md), [security policy](SECURITY.md), [license](LICENSE), [dual licensing](LICENSING.md). Bounded input and reporting helpers are bundled from the reviewed Node.js checker at `74aa57ba5df05c34d17ae67912cd26ec2335201b`, with package-specific range comparison and the mixed-whitespace CSV fix. No companion repository is needed at runtime.
 
 CSV `record_type=result` rows are asset observations. A zero-result report has a `record_type=summary` row carrying completeness, schema, rule date, CVE and `not_tested`; it is not an asset finding.
+
+CSV rejects NUL characters before writing a report. An interruption after a complete report is published preserves that report and exits 130.

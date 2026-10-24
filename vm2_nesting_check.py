@@ -329,6 +329,8 @@ def load_csv_list(path, budget=None, out=None):
 def csv_safe(value):
     if isinstance(value, list):
         value = " | ".join(value)
+    if isinstance(value, str) and "\x00" in value:
+        raise ValueError("CSV values cannot contain NUL characters")
     if isinstance(value, str) and (value[:1] in ("\t", "\r", "\n") or value.lstrip().startswith(("=", "+", "-", "@"))):
         return "'" + value
     return value
@@ -444,11 +446,7 @@ def render_report(rows, **options):
 
 
 def save_report(path, rows, *, force=False, state=None, **options):
-    """Publish a complete file atomically, refusing an existing path unless forced.
-
-    ``state`` records progress for interrupt handling: ``stdout_started`` is set before the single
-    buffered stdout write, and ``published`` right after the file is published or stdout is written.
-    """
+    """Render first and publish atomically, retaining ownership across interrupts."""
     state = {} if state is None else state
     data = render_report(rows, **options)
     if path is None:
@@ -469,19 +467,28 @@ def save_report(path, rows, *, force=False, state=None, **options):
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
-        if force:
-            os.replace(temporary, path)
+            staged_identity = os.fstat(stream.fileno())
+        try:
+            if force:
+                os.replace(temporary, path)
+            else:
+                try:
+                    os.link(temporary, path)
+                except FileExistsError:
+                    raise ValueError("Output exists; use a new path or explicitly pass --force") from None
+                except OSError as exc:
+                    raise ValueError("Cannot publish without overwriting: hard links are unavailable here "
+                                     f"({exc.strerror or type(exc).__name__}); choose another filesystem or explicitly use --force") from None
             state["published"] = True
-        else:
+        except KeyboardInterrupt:
+            # The OS can finish publication before Python delivers SIGINT.
+            # An existing path or equal bytes alone do not establish ownership.
             try:
-                os.link(temporary, path)  # atomic no-clobber publication; never fall back to a rename
-            except FileExistsError:
-                raise ValueError("Output exists; use a new path or explicitly pass --force") from None
-            except OSError as exc:
-                raise ValueError("Cannot publish without overwriting: hard links are unavailable here "
-                                 f"({exc.strerror or type(exc).__name__}); use a new path on a filesystem with hard links, "
-                                 "or pass --force to replace explicitly") from None
-            state["published"] = True
+                if os.path.samestat(staged_identity, os.stat(path, follow_symlinks=False)):
+                    state["published"] = True
+            except OSError:
+                pass
+            raise
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
