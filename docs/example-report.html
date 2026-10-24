@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>CVE-2026-92935 Version Report</title><style>
+:root{--bg:#F8FAFC;--surface:#FFFFFF;--surface-2:#EEF2FF;--ink:#0F172A;--ink-2:#1E293B;--ink-3:#64748B;--line:#E2E8F0;
+--accent:#1E3A8A;--accent-text:#1E3A8A;--on-accent:#FFFFFF;--bad:#B42318;--bad-bg:#FEE4E2;--ok:#067647;--ok-bg:#DCFAE6;--unk:#475467;--unk-bg:#EAECF0}
+@media (prefers-color-scheme:dark){:root{--bg:#0F172A;--surface:#1E293B;--surface-2:#273449;--ink:#F1F5F9;--ink-2:#CBD5E1;--ink-3:#94A3B8;
+--line:#334155;--accent-text:#93C5FD;--bad:#FDA29B;--bad-bg:#55160C;--ok:#75E0A7;--ok-bg:#053321;--unk:#D0D5DD;--unk-bg:#344054}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Arial,system-ui,sans-serif}
+main{max-width:1240px;margin:0 auto;padding:24px 16px 48px}
+header{padding:20px 0;border-bottom:3px solid var(--accent);margin-bottom:20px}
+.eyebrow{font-size:12px;letter-spacing:.12em;font-weight:700;color:var(--accent-text);text-transform:uppercase}
+h1{margin:2px 0;font-size:26px}.sub{color:var(--ink-3);margin:0}h2{margin:32px 0 10px;font-size:18px;color:var(--ink-2)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.tile b{display:block;font-size:28px;color:var(--accent-text)}.tile span{color:var(--ink-3);font-size:13px}
+.tile.bad b{color:var(--bad)}.tile.ok b{color:var(--ok)}
+.wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line)}
+table.narrow{max-width:360px}
+th{background:var(--accent);color:var(--on-accent);text-align:left;padding:8px 10px;font-size:13px;white-space:nowrap}
+td{padding:8px 10px;border-top:1px solid var(--line);vertical-align:top;font-size:14px}tr:nth-child(even) td{background:var(--surface-2)}
+td.site{overflow-wrap:anywhere;min-width:160px}td.notes{color:var(--ink-3);font-size:13px;min-width:240px}
+code{font:13px Consolas,monospace}ul.obs{list-style:none;margin:0;padding:0;font-size:12px;overflow-wrap:anywhere}
+.pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.pill.potentially_affected{color:var(--bad);background:var(--bad-bg)}.pill.fixed_version_reported{color:var(--ok);background:var(--ok-bg)}
+.pill.unknown{color:var(--unk);background:var(--unk-bg)}
+.callout{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:12px 16px;color:var(--ink-2)}
+footer{margin-top:40px;padding-top:12px;border-top:1px solid var(--line);color:var(--ink-3);font-size:12px}
+a{color:var(--accent-text)}details{max-width:430px}summary{cursor:pointer;color:var(--accent-text)}details ul{padding-left:18px}
+@media print{body{background:#fff}tr,.tile{break-inside:avoid}details>summary{display:none}}
+</style></head><body><main>
+<header><div class="eyebrow">CompleteTech LLC</div><h1>CVE-2026-92935 Version Report</h1>
+<p class="sub">vm2 array-shaped require nesting escape · generated 2026-10-24 14:45 UTC · rules as of 2026-10-24</p></header>
+<p class="callout"><b>Version evidence, not a proof of exploitability.</b> Every result has exploitability <code>not_tested</code>.
+Unknown results need investigation. Precondition observations are operator-reported and do not change the version status.</p>
+<div class="tiles"><div class='tile '><b>1</b><span>Inputs assessed</span></div><div class='tile bad'><b>0</b><span>Potentially affected</span></div><div class='tile '><b>0</b><span>Unknown</span></div><div class='tile ok'><b>1</b><span>Fixed version reported</span></div></div>
+<h2>Results</h2><div class="wrap"><table><thead><tr><th>Input</th><th>Assessment</th><th>Reported version</th>
+<th>Upstream fix</th><th>Precondition observations</th><th>Next step and evidence</th></tr></thead>
+<tbody><tr><td class='site'>example-package-instance<br><small>inventory</small></td><td><span class='pill fixed_version_reported'>Fixed version reported</span><br><small><code>at_or_above_fixed_version</code></small></td><td><code>3.11.7</code><br><small>build: unknown</small></td><td><code>3.11.7</code></td><td><ul class='obs'><li title='NodeVM nesting enabled'><code>nodevm_nesting_enabled</code>: not_reported</li><li title='require configuration is array-shaped'><code>require_configuration_is_array_shaped</code>: not_reported</li><li title='attacker-supplied JavaScript executed'><code>attacker_supplied_javascript_executed</code>: not_reported</li></ul></td><td class='notes'><p>Verify this package instance is actually deployed and contains the upstream fix.</p><details><summary>Evidence and limitations</summary><ul><li>Reported version meets the fix within this reviewed release line; this is not installed-patch attestation.</li><li>The database maps this CVE to the canonical GHSA; maintainer page still shows no known CVE. Report&#x27;s September 17 date is not the canonical publication date. Versions below 3.11.4 may have other vulnerabilities but are outside this precise advisory.</li></ul></details></td></tr></tbody></table></div>
+<h2>Upstream fixed releases</h2><div class="wrap"><table class="narrow"><thead><tr><th>Branch</th><th>Fixed in</th></tr></thead><tbody><tr><td>3.11.x</td><td><code>3.11.7</code></td></tr></tbody></table></div>
+<h2>Verify the deployed application</h2>
+<p>Check the actual vm2 binary in each serving process or container. Upgrade the runtime, redeploy, then collect the version again.
+Vendor and custom builds require vendor evidence because fixes may be backported.</p>
+<footer>CompleteTech LLC · vm2-nesting-check 1.0.0 · <a href='https://github.com/patriksimek/vm2/security/advisories/GHSA-8hr7-r645-pc6w'>GHSA-8hr7-r645-pc6w</a> · <a href='https://github.com/advisories/GHSA-8hr7-r645-pc6w'>GHSA-8hr7-r645-pc6w</a></footer>
+</main></body></html>

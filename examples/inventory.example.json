@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "package": "vm2",
+  "package_version": "3.11.7",
+  "label": "example-package-instance",
+  "build_source": "unknown",
+  "nodevm_nesting_enabled": null,
+  "require_configuration_is_array_shaped": null,
+  "attacker_supplied_javascript_executed": null
+}
