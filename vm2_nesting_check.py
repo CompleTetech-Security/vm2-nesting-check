@@ -469,6 +469,8 @@ def save_report(path, rows, *, force=False, state=None, **options):
             os.fsync(stream.fileno())
             staged_identity = os.fstat(stream.fileno())
         try:
+            if state is not None:
+                state["publication_started"] = True
             if force:
                 os.replace(temporary, path)
             else:
@@ -481,13 +483,19 @@ def save_report(path, rows, *, force=False, state=None, **options):
                                      f"({exc.strerror or type(exc).__name__}); choose another filesystem or explicitly use --force") from None
             state["published"] = True
         except KeyboardInterrupt:
-            # The OS can finish publication before Python delivers SIGINT.
-            # An existing path or equal bytes alone do not establish ownership.
+            # A second interrupt or metadata failure must not permit a retry.
             try:
-                if os.path.samestat(staged_identity, os.stat(path, follow_symlinks=False)):
-                    state["published"] = True
+                owned = os.path.samestat(staged_identity, os.stat(path, follow_symlinks=False))
+                if state is not None:
+                    if owned:
+                        state["published"] = True
+                    else:
+                        state["publication_started"] = False
+            except FileNotFoundError:
+                if state is not None:
+                    state["publication_started"] = False
             except OSError:
-                pass
+                pass  # Publication outcome remains indeterminate.
             raise
     finally:
         if temporary is not None:
@@ -586,6 +594,9 @@ def main(argv=None):
                 return 130
             if state["published"]:
                 print("Interrupted after the complete report was written; not retrying.", file=sys.stderr)
+                return 130
+            if state.get("publication_started"):
+                print("Interrupted; publication outcome indeterminate; inspect the output before retrying. No retry was attempted.", file=sys.stderr)
                 return 130
             if state["stdout_started"]:
                 print("Interrupted while writing to stdout; output may be truncated and no second report is written.", file=sys.stderr)

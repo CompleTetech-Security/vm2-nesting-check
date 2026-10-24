@@ -12,6 +12,8 @@ import vm2_nesting_check as c
 VERSION_FIELD = 'package_version'
 FIXED = '3.11.7'
 
+UNCERTAIN_ARGS = ['--version', FIXED]
+
 class PublicationBoundaryTests(unittest.TestCase):
     def run_cli(self,*args):
         with contextlib.redirect_stdout(io.StringIO()) as out,contextlib.redirect_stderr(io.StringIO()) as err:
@@ -76,4 +78,56 @@ class PublicationBoundaryTests(unittest.TestCase):
                     else:self.assertFalse(target.exists())
             code,out,_=self.run_cli('--inventory',str(inventory),'--format','json')
             self.assertEqual(0,code);self.assertEqual('example\x00asset',json.loads(out)['results'][0]['input_label'])
+    def test_indeterminate_publication_never_retries(self):
+        for fmt in ['json', 'csv', 'html']:
+            for force, attribute in [(False, 'link'), (True, 'replace')]:
+                for failure in ['metadata', 'second_interrupt']:
+                    with self.subTest(fmt=fmt, force=force, failure=failure), tempfile.TemporaryDirectory() as directory:
+                        target = Path(directory) / ('report.' + fmt)
+                        if force:
+                            target.write_text('old')
+                        original = getattr(c.os, attribute)
+                        original_stat = c.os.stat
+                        calls = []
+                        committed = []
+                        def publish(src, dst):
+                            calls.append(True)
+                            committed.append(Path(src).read_bytes())
+                            original(src, dst)
+                            raise KeyboardInterrupt
+                        def stat(path, *args, **kwargs):
+                            if kwargs.get('follow_symlinks') is False and Path(path) == target:
+                                if failure == 'second_interrupt':
+                                    raise KeyboardInterrupt
+                                raise OSError(5, 'synthetic metadata failure')
+                            return original_stat(path, *args, **kwargs)
+                        with mock.patch.object(c.os, attribute, publish), mock.patch.object(c.os, 'stat', stat):
+                            code, out, err = self.run_cli(*UNCERTAIN_ARGS, '--format', fmt, '--output', str(target), *(['--force'] if force else []))
+                        self.assertEqual(130, code)
+                        self.assertEqual('', out)
+                        self.assertEqual(1, len(calls))
+                        self.assertEqual(committed[0], target.read_bytes())
+                        self.assertNotIn('Traceback', err)
+                        self.assertNotIn('complete report was written', err)
+                        if failure == 'metadata':
+                            self.assertIn('indeterminate', err)
+                        self.assertEqual([target.name], sorted(x.name for x in Path(directory).iterdir()))
+
+    def test_definite_absence_allows_incomplete_recovery(self):
+        for force, attribute in [(False, 'link'), (True, 'replace')]:
+            with self.subTest(force=force), tempfile.TemporaryDirectory() as directory:
+                target = Path(directory) / 'report.json'
+                original = getattr(c.os, attribute)
+                calls = []
+                def publish(src, dst):
+                    calls.append(True)
+                    if len(calls) == 1:
+                        raise KeyboardInterrupt
+                    return original(src, dst)
+                with mock.patch.object(c.os, attribute, publish):
+                    code, _, _ = self.run_cli(*UNCERTAIN_ARGS, '--format', 'json', '--output', str(target), *(['--force'] if force else []))
+                self.assertEqual(130, code)
+                self.assertEqual(2, len(calls))
+                self.assertFalse(json.loads(target.read_text())['complete'])
+
 if __name__=='__main__':unittest.main()

@@ -56,3 +56,5 @@ Exit 0: completed run; 1: potentially affected with `--fail-on-finding`; 2: argu
 CSV `record_type=result` rows are asset observations. A zero-result report has a `record_type=summary` row carrying completeness, schema, rule date, CVE and `not_tested`; it is not an asset finding.
 
 CSV rejects NUL characters before writing a report. An interruption after a complete report is published preserves that report and exits 130.
+
+If an interrupt leaves file publication indeterminate, the checker exits 130 without retrying. Inspect the output before retrying; the diagnostic does not establish whether publication succeeded.
