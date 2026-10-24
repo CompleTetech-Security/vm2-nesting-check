@@ -1,22 +1,6 @@
 # Contributing
 
-This repository is initialized for **CVE-2026-92935**. Checker implementation is
-pending; start with the [implementation checklist](docs/IMPLEMENTATION.md).
-Submit focused pull requests for this exploit. Report flaws requiring private
-disclosure according to [SECURITY.md](SECURITY.md).
-
-## Development expectations
-
-Follow [AGENTS.md](AGENTS.md). Prefer a standalone Python 3.10+ checker with no
-third-party runtime/test dependencies when suitable. Validate primary sources
-before encoding affected or fixed ranges. Preserve evidence provenance and
-`unknown` for missing or conflicting facts. Keep exploitability `not_tested`.
-
-Use offline inventories, synthetic examples, mocks, and local fixtures. Do not
-commit credentials, real target lists, private reports, or exploit payloads.
-Network detection must be justified, optional, ordinary, bounded, and authorized.
-Document implemented behavior and actual commands; no checker commands or test
-suite are available in this foundation yet.
+Read AGENTS.md and README.md. Run `python -m unittest -v`, `python vm2_nesting_check.py --help` and `git diff --check`. Use synthetic evidence only, verify primary sources before changing ranges, keep source conflicts unknown, and never run application code or send exploit payloads. Preserve safe publication, bounded reads, output escaping and complete=false after interruption. Review and exact-head hosted CI precede merge.
 
 ## Licensing of contributions
 

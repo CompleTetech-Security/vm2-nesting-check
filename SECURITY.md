@@ -14,12 +14,10 @@ revision when possible. No response-time guarantee is made.
 
 ## Advisory scope and implementation status
 
-This project is dedicated to **CVE-2026-92935**. It currently provides research
-and an implementation plan. No scanner, exploit verification, or security
-assessment has been implemented. The advisory record is explicitly disabled.
+This project is dedicated to **CVE-2026-92935**. It provides offline package-version evidence triage. It does not scan deployed systems or test exploitability.
 
-Future output must distinguish reported versions and configuration hints from
-confirmed exposure. Exploitability remains `not_tested`. Use future assessment
+Output must distinguish reported versions and configuration hints from
+confirmed exposure. Exploitability remains `not_tested`. Use assessment
 features only for authorized targets; project development alone authorizes no
 network scanning. Keep real inventories and assessment results outside the repo.
 

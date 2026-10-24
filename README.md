@@ -1,133 +1,56 @@
-<p align="center">
-  <img src="docs/images/banner.png" alt="vm2-nesting-check by CompleteTech LLC" width="100%">
-</p>
+# vm2-nesting-check
 
-<p align="center">
-  <img src="https://img.shields.io/badge/status-research%20only-B45309" alt="Status: research only">
-  <img src="https://img.shields.io/badge/checker-pending-B45309" alt="Checker: pending">
-  <a href="LICENSING.md"><img src="https://img.shields.io/badge/license-AGPL--3.0%20%7C%20commercial-64748B" alt="AGPL-3.0 or commercial license"></a>
-</p>
+Offline evidence checker for **CVE-2026-92935 — vm2 array-shaped require nesting escape**. Python 3.10+, standard library only. The executable can be copied alone. It never contacts websites, imports application code, runs a package manager, or executes exploit payloads.
 
-<p align="center">
-  <b>Planned checker for the vm2 array-shaped require nesting escape</b><br>
-  CVE-2026-92935 · GHSA-8hr7-r645-pc6w · research only, no checker yet
-</p>
+```sh
+python vm2_nesting_check.py --version 3.11.7 --format json
+python vm2_nesting_check.py --inventory examples/inventory.example.json --format html --output report.html
+python vm2_nesting_check.py --csv-list inventory.csv --fail-on-finding
+python vm2_nesting_check.py --help
+python -m unittest -v
+```
 
----
+## Reviewed rules
 
-> **Repository initialized; checker implementation pending.**
-> This project currently contains research and an implementation checklist.
-> It does not assess systems or provide an executable detection rule.
+Primary advisory and reviewed database retrieved 2026-10-24. A public URL cannot provide installed package inventory. Obtain each deployed package instance's exact version and provenance; declarations and local workstation versions are not deployment evidence.
 
-`vm2-nesting-check` is dedicated to **CVE-2026-92935**, an escape in the [vm2](https://github.com/patriksimek/vm2) Node.js sandbox that applies when `NodeVM` nesting is enabled with an array-shaped `require` configuration. The planned checker will follow the evidence conventions of [node2shell-check](https://github.com/CompleteTech-LLC/node2shell-check) and [php2shell-check](https://github.com/CompleteTech-LLC/php2shell-check): it will send **no exploit payloads** and report uncertainty honestly. None of that exists yet.
-
-## Status and what's planned
-
-There are currently no checker commands, downloadable binaries, install steps, test results, or CI. Follow progress in the exploit-specific [implementation checklist](docs/IMPLEMENTATION.md), and read [AGENTS.md](AGENTS.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md) before contributing.
-
-## One exploit, one repository
-
-| Field | Scope |
+| Example reported version | Result |
 | --- | --- |
-| Exploit identifier | `CVE-2026-92935` |
-| Aliases for this same exploit | `GHSA-8hr7-r645-pc6w` |
-| Research verification date | 2026-10-23 |
-| Implementation state | `planned` |
-| Detection rule | **Disabled — research only** |
+| 3.11.3 | `unknown` |
+| 3.11.4 | `potentially_affected` |
+| 3.11.6 | `potentially_affected` |
+| 3.11.7 | `fixed_version_reported` |
+| 3.11.8 | `fixed_version_reported` |
+| 3.12.0 | `unknown` |
+| 4.0.0 | `unknown` |
 
-This repository is dedicated to **CVE-2026-92935**. Aliases and multiple affected
-products identify this same exploit; they do not create additional scanner scopes.
-Future fixes for different vulnerabilities belong in independent repositories.
+The database maps this CVE to the canonical GHSA; maintainer page still shows no known CVE. Report's September 17 date is not the canonical publication date. Versions below 3.11.4 may have other vulnerabilities but are outside this precise advisory.
 
-## Planned report layout
+The reviewed fixed line is `3.11.x`; future lines remain unknown rather than extrapolating a patch claim. Versions outside the exact affected interval remain unknown, including older releases that might have other flaws. Missing, conflicting, malformed, prerelease, qualified, custom/vendor builds remain unknown. `fixed_version_reported` only describes a version claim; it never attests installed patches or safety. `potentially_affected` is not confirmed exploitability. Every row retains `exploitability: not_tested`.
 
-A future checker is intended to produce human-readable findings plus machine-readable JSON/CSV. The image below is an **illustration of a possible layout only**; no report generator exists.
+## Preconditions
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/report-dark.png">
-    <img src="docs/images/report-light.png" alt="Illustrative placeholder report layout, clearly marked as not implemented" width="900">
-  </picture>
-</p>
-
-<p align="center"><sub>ILLUSTRATIVE mock-up with placeholder rows and reserved <code>example.*</code> domains. It is not output from a checker and shows no real results.</sub></p>
-
-## What the results will mean (planned)
-
-This is the planned status vocabulary from [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md). It is not implemented.
-
-| Status | Planned meaning |
+| Optional operator observation | Meaning |
 | --- | --- |
-| `potentially_affected` | Evidence matches this advisory's documented range or condition. Not confirmed exploitability. |
-| `fixed_version_reported` | A supported comparison shows a version at or above the reported fix. Not a verified clean bill of health. |
-| `unknown` | Missing, malformed, conflicting, prerelease, vendor/custom-build, possible-backport, or uncovered versions. |
+| `nodevm_nesting_enabled` | NodeVM nesting enabled |
+| `require_configuration_is_array_shaped` | require configuration is array-shaped |
+| `attacker_supplied_javascript_executed` | attacker-supplied JavaScript executed |
 
-| Research-only version data | Value |
-| --- | --- |
-| **Affected (per advisory)** | `>=3.11.4 <=3.11.6` |
-| **Fixed in (reported)** | `3.11.7` |
+Each observation is boolean or null, is unverified, and never changes the package-version result. No source search, taint analysis, reachability test, or runtime evaluation is performed. Absent observations do not establish mitigation.
 
-These values come from [advisory.json](advisory.json) and are research only; no detection rule is enabled. Versions below 3.11.4 may have other vulnerabilities but are outside this precise advisory.
+## Evidence and reports
 
-> [!IMPORTANT]
-> **Potential exposure is not confirmed exploitability.** Exploitability stays `not_tested`. A reported fix version is evidence, not a guarantee that a deployed system is patched, and none of this is implemented yet.
+JSON accepts one object or an array of objects. Required: integer `schema_version: 1`, string `package_version`. Optional: `package: "vm2"`, `label`, `build_source`, and the observation keys above. Unknown or duplicate keys, wrong types, non-finite numbers and malformed inputs are rejected. CSV requires `package_version`; optional columns are label, build_source, and observation keys (`true`, `false`, blank). CLI `--version` is repeatable; values are separate instances, not evidence reconciliation for a single instance. `--build-source` and observation flags (underscore becomes hyphen) apply to CLI versions.
 
-## How it will work (planned)
+Only regular UTF-8 input files are accepted. Limits: 4 MiB/file, 100 files, 10,000 entries total, 512 characters/text field. Work from stable copies; checks are not a filesystem sandbox. JSON, formula-neutralized CSV and escaped script-free HTML share assessments. Output files publish atomically and do not overwrite existing files without `--force`; inputs remain protected even with force.
 
-- Prefer offline version, inventory, or configuration evidence appropriate to this exploit.
-- Keep version state, documented preconditions, evidence provenance, and uncertainty separate.
-- Preserve `exploitability: not_tested`; never run exploit payloads or confirm compromise.
-- Keep missing, malformed, conflicting, vendor-qualified, prerelease, and uncovered versions `unknown`.
-- Produce human-readable findings and machine-readable JSON/CSV; document each output before release.
-- Add bounded, explicitly selected passive network behavior only if it provides useful evidence.
+Exit 0: completed run; 1: potentially affected with `--fail-on-finding`; 2: argument/input/output error; 130: interrupted, preserving completed observations when possible. Interruption during stdout can leave a truncated document and never appends a second report. Unknown does not count as a finding-gate failure or as a clean result. Reports contain operator data; keep real targets, inventories and reports out of commits.
 
-These capabilities are **planned**, not implemented.
+## Sources and delivery
 
-## Advisory snapshot
+- https://github.com/patriksimek/vm2/security/advisories/GHSA-8hr7-r645-pc6w
+- https://github.com/advisories/GHSA-8hr7-r645-pc6w
 
-The following is source-backed research for implementation planning. It is not a
-test result, a live rule feed, or an attestation that a deployed system is patched.
+[Synthetic report](docs/example-report.html), [reference](docs/REFERENCE.md), [implementation status](docs/IMPLEMENTATION.md), [AGENTS](AGENTS.md), [contribution terms](CONTRIBUTING.md), [security policy](SECURITY.md), [license](LICENSE), [dual licensing](LICENSING.md). Bounded input and reporting helpers are bundled from the reviewed Node.js checker at `74aa57ba5df05c34d17ae67912cd26ec2335201b`, with package-specific range comparison and the mixed-whitespace CSV fix. No companion repository is needed at runtime.
 
-### Affected versions or conditions
-
->=3.11.4 <=3.11.6
-
-### Reported fixes or remediation
-
-3.11.7
-
-### Deployment preconditions to establish
-
-- NodeVM nesting enabled
-- require configuration is array-shaped
-- attacker-supplied JavaScript executed
-
-### Evidence notes and limitations
-
-- The database maps this CVE to the canonical GHSA; maintainer page still shows no known CVE. Report's September 17 date is not the canonical publication date. Versions below 3.11.4 may have other vulnerabilities but are outside this precise advisory.
-
-## Primary sources
-
-1. [github.com](https://github.com/patriksimek/vm2/security/advisories/GHSA-8hr7-r645-pc6w)
-2. [github.com](https://github.com/advisories/GHSA-8hr7-r645-pc6w)
-
-The research date records the supplied verification snapshot. Recheck primary
-advisories before enabling any detection logic, and retain contradictory evidence.
-
-## Documentation
-
-- [Implementation checklist](docs/IMPLEMENTATION.md): the local work plan and verification gates
-- [advisory.json](advisory.json): source-preserving research record (detection disabled)
-- [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md) · [Repository instructions](AGENTS.md)
-
-## License
-
-[AGPL-3.0](LICENSE), or a separate commercial agreement with CompleteTech LLC.
-See [LICENSING.md](LICENSING.md) and the
-[contribution terms](CONTRIBUTING.md#licensing-of-contributions).
-Names and branding are governed by [BRAND_ASSETS.md](BRAND_ASSETS.md).
-
-<p align="center">
-  <sub>Built by <a href="https://complete.tech">CompleteTech LLC</a></sub><br>
-  <sub>Copyright © 2026 CompleteTech LLC.</sub>
-</p>
+CSV `record_type=result` rows are asset observations. A zero-result report has a `record_type=summary` row carrying completeness, schema, rule date, CVE and `not_tested`; it is not an asset finding.
