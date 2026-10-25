@@ -5,3 +5,7 @@ Implemented offline package-version evidence checker, with independent source/se
 Local verification: 13 tests, CLI help, documented synthetic inputs, checksum validation and whitespace checks. Hosted CI must pass for the exact final PR head before merge; a local pass is not a hosted result. The advisory metadata now describes the implemented rule and preserves its original disabled research state under research_origin.
 
 No live traffic, application execution, exploit verification or deployed-target assessment is claimed. Reported fixed versions do not attest installed patches; unknown evidence remains unknown.
+
+## Source candidate extension (2026-10-25)
+
+Implemented explicit bounded JS/TS source selection, literal vm2 import aliases, NodeVM construction and configuration shapes, relative locations and lexical run-argument association. Source evidence stays unknown, separate from version/operator observations. No AST, trust or runtime attestation is claimed. Templates, shadowing and dynamic syntax require manual review. Added source-specific synthetic tests and macOS CI; exact-head hosted checks remain a separate release gate. See README/REFERENCE for actual commands, schema 1.1 and bounds. Advisory thresholds and rule date are unchanged.

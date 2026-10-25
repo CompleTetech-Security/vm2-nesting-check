@@ -21,8 +21,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 TOOL_NAME = "vm2-nesting-check"
-TOOL_VERSION = "1.0.0"
-REPORT_SCHEMA_VERSION = "1.0"
+TOOL_VERSION = "1.1.0"
+REPORT_SCHEMA_VERSION = "1.1"
 MAX_INPUT_BYTES = 4 * 1024 * 1024
 MAX_ENTRIES = 10000
 MAX_FIELD = 512
@@ -149,6 +149,8 @@ INVENTORY_FIELDS = {"schema_version", "package", "label", "package_version", "bu
 CSV_COLUMNS = ["record_type", "input_label", "input_source", "package_version", "build_source", "status", "version_status", "fixed_version",
                "exploitability", "evidence_type", "evidence_confidence", "cve", "rules_as_of", *[f"precondition_{key}" for key in PRECONDITION_KEYS],
                "recommendation", "notes", "sources", "report_schema_version", "report_complete"]
+SOURCE_COLUMNS = ["source_path", "source_line", "source_nesting", "source_require", "source_run_argument", "source_coverage"]
+CSV_COLUMNS += SOURCE_COLUMNS
 STATUS_ORDER = {"potentially_affected": 0, "unknown": 2, "fixed_version_reported": 3}
 STATUS_LABELS = {"potentially_affected": "Potentially affected", "unknown": "Unknown", "fixed_version_reported": "Fixed version reported"}
 
@@ -224,6 +226,244 @@ def _read_bounded(path):
     if len(raw) > MAX_INPUT_BYTES:
         raise ValueError("Input file exceeds the 4 MiB limit")
     return raw.decode("utf-8-sig")
+
+
+def _js_tokens(text):
+    """Bounded lexical hints, not a JavaScript parser. Never retain source strings."""
+    tokens = []
+    index, line = 0, 1
+    while index < len(text):
+        start = index
+        char = text[index]
+        if char.isspace():
+            line += char == "\n"
+            index += 1
+            continue
+        if text.startswith("//", index):
+            end = text.find("\n", index)
+            index = len(text) if end < 0 else end
+            continue
+        if text.startswith("/*", index):
+            end = text.find("*/", index + 2)
+            if end < 0:
+                raise ValueError("Unterminated JavaScript comment")
+            line += text.count("\n", index, end + 2)
+            index = end + 2
+            continue
+        token_line = line
+        if char in "\"'`":
+            index += 1
+            while index < len(text):
+                if text[index] == "\\":
+                    index += 2
+                elif text[index] == char:
+                    index += 1
+                    break
+                else:
+                    index += 1
+            else:
+                raise ValueError("Unterminated JavaScript string or template")
+            raw = text[start + 1:index - 1]
+            value = "@template" if char == "`" else "@" + raw if raw in {"vm2", "nesting", "require"} else "@string"
+            line += text.count("\n", start, index)
+        elif char == "/" and (not tokens or tokens[-1][0] in {"=", "(", "[", "{", ":", ",", ";", "return", "=>"}):
+            # Regex bodies are opaque. Templates (including interpolations) are
+            # also opaque; the report always states incomplete lexical coverage.
+            index += 1
+            in_class = False
+            while index < len(text):
+                c = text[index]
+                if c == "\\":
+                    index += 2
+                    continue
+                if c == "[":
+                    in_class = True
+                elif c == "]":
+                    in_class = False
+                elif c == "/" and not in_class:
+                    index += 1
+                    break
+                elif c == "\n":
+                    raise ValueError("Unterminated JavaScript regex candidate")
+                index += 1
+            else:
+                raise ValueError("Unterminated JavaScript regex candidate")
+            value = "@regex"
+        elif char.isascii() and (char.isalpha() or char in "_$"):
+            index += 1
+            while index < len(text) and text[index].isascii() and (text[index].isalnum() or text[index] in "_$"):
+                index += 1
+            value = text[start:index]
+        elif text.startswith("...", index):
+            value, index = "...", index + 3
+        else:
+            value, index = char, index + 1
+        tokens.append((value, token_line))
+        if len(tokens) > 200000:
+            raise ValueError("Source exceeds the 200,000 token limit")
+    return tokens
+
+
+def _nodevm_bindings(values):
+    constructors, namespaces = set(), set()
+    identifier = r"[A-Za-z_$][A-Za-z0-9_$]*"
+    # Only literal vm2 imports in bounded, simple declarations are recognized.
+    # Shadowing, reassignment and execution order are not resolved: all matches
+    # remain candidates and never fill the operator-observation fields.
+    for index, value in enumerate(values):
+        if value not in {"const", "let", "var", "import"}:
+            continue
+        end = index + 1
+        while end < min(len(values), index + 100) and values[end] != ";":
+            end += 1
+        statement = " ".join(values[index:end])
+        if value == "import":
+            match = re.match(r"import \{ (.*?) \} from @vm2(?: |$)", statement)
+            if match:
+                for member in re.split(r"\s*,\s*", match[1]):
+                    m = re.fullmatch(r"NodeVM(?: as (" + identifier + r"))?", member)
+                    if m:
+                        constructors.add(m[1] or "NodeVM")
+            match = re.match(r"import \* as (" + identifier + r") from @vm2(?: |$)", statement)
+            if match:
+                namespaces.add(match[1])
+        else:
+            match = re.match(r"(?:const|let|var) \{ (.*?) \} = require \( @vm2 \)", statement)
+            if match:
+                for member in re.split(r"\s*,\s*", match[1]):
+                    m = re.fullmatch(r"NodeVM(?: : (" + identifier + r"))?", member)
+                    if m:
+                        constructors.add(m[1] or "NodeVM")
+            match = re.match(r"(?:const|let|var) (" + identifier + r") = require \( @vm2 \)(.*)", statement)
+            if match:
+                if re.match(r" \. NodeVM(?: |$)", match[2]):
+                    constructors.add(match[1])
+                elif not match[2].startswith(" ."):
+                    namespaces.add(match[1])
+    return constructors, namespaces
+
+
+def _source_shapes(values, opening, closing, pairs):
+    nesting, require = "unknown", "unknown"
+    if closing - opening > 4096:
+        return nesting, require
+    first = opening + 1
+    if first == closing:
+        return "not_specified", "not_specified"
+    if values[first] != "{" or pairs.get(first) != closing - 1:
+        return nesting, require
+    members, start = [], first + 1
+    index = start
+    while index < closing - 1:
+        if values[index] == "...":
+            return "unknown", "unknown"
+        if values[index] in {"{", "[", "("} and index in pairs:
+            index = pairs[index] + 1
+            continue
+        if values[index] == ",":
+            members.append(values[start:index])
+            start = index + 1
+        index += 1
+    if start < closing - 1:
+        members.append(values[start:closing - 1])
+    props = {}
+    for member in members:
+        if len(member) < 3 or member[1] != ":" or member[0].startswith("["):
+            return "unknown", "unknown"
+        key = member[0].removeprefix("@")
+        if key in props:
+            return "unknown", "unknown"
+        props[key] = member[2:]
+    n = props.get("nesting")
+    r = props.get("require")
+    nesting = "not_specified" if n is None else "literal_" + n[0] if n in (["true"], ["false"]) else "unknown"
+    if r is None:
+        require = "not_specified"
+    elif r[0] in {"[", "{"}:
+        depth, end = 0, None
+        for index, value in enumerate(r):
+            if value in {"[", "{", "("}:
+                depth += 1
+            elif value in {"]", "}", ")"}:
+                depth -= 1
+                if depth == 0:
+                    end = index
+                    break
+        if end == len(r) - 1:
+            require = "array_candidate" if r[0] == "[" else "object_candidate"
+    elif r in (["true"], ["false"], ["null"]):
+        require = "literal_" + r[0]
+    return nesting, require
+
+
+def scan_source_text(text, relative_path):
+    """Return lexical review rows only, without assigning version or trust state."""
+    tokens = _js_tokens(text)
+    values = [t[0] for t in tokens]
+    constructors, namespaces = _nodevm_bindings(values)
+    stack, pairs = [], {}
+    for index, value in enumerate(values):
+        if value in {"{", "[", "("}:
+            stack.append(index)
+        elif value in {"}", "]", ")"}:
+            if not stack or values[stack[-1]] != {"}": "{", "]": "[", ")": "("}[value]:
+                raise ValueError("Unbalanced JavaScript delimiters")
+            opening = stack.pop()
+            pairs[opening] = index
+    if stack:
+        raise ValueError("Unbalanced JavaScript delimiters")
+    runs = {}
+    for index in range(len(values) - 4):
+        if values[index + 1:index + 4] == [".", "run", "("]:
+            shape = "literal_string" if values[index + 4] == "@string" else "dynamic_or_unsupported"
+            runs.setdefault(values[index], set()).add(shape)
+    rows = []
+    for index, value in enumerate(values[:-2]):
+        if value != "new":
+            continue
+        opening = None
+        if values[index + 1] in constructors and values[index + 2] == "(":
+            opening = index + 2
+        elif (index + 4 < len(values) and values[index + 1] in namespaces
+              and values[index + 2:index + 5] == [".", "NodeVM", "("]):
+            opening = index + 4
+        if opening is None or opening not in pairs:
+            continue
+        nesting, require = _source_shapes(values, opening, pairs[opening], pairs)
+        row = assess_entry(relative_path, "source", "")
+        row.update(evidence_type="lexical_source_candidate", source_path=relative_path,
+                   source_line=tokens[index][1], source_nesting=nesting, source_require=require,
+                   source_run_argument="not_observed", source_coverage="limited_lexical")
+        # Only direct variable assignment and direct calls on that spelling are
+        # associated. A lexical association is not a proven object or taint flow.
+        receiver = values[index - 2] if index >= 2 and values[index - 1] == "=" else None
+        argument_shapes = runs.get(receiver, set())
+        if argument_shapes:
+            row["source_run_argument"] = next(iter(argument_shapes)) if len(argument_shapes) == 1 else "mixed"
+        row["notes"].append(
+            f"Source candidate {relative_path}:{tokens[index][1]}: nesting={nesting}; require={require}; "
+            f"run_argument={row['source_run_argument']}. This is not runtime configuration, trusted-input or taint evidence. "
+            "Aliases, shadowing, reassignment, dynamic syntax, templates and execution order need manual review; no match never means absent.")
+        rows.append(row)
+        if len(rows) > MAX_ENTRIES:
+            raise ValueError("Too many source candidates")
+    if not rows:
+        row = assess_entry(relative_path, "source", "")
+        row.update(evidence_type="source_coverage", source_path=relative_path, source_line="",
+                   source_nesting="unknown", source_require="unknown", source_run_argument="not_observed",
+                   source_coverage="limited_lexical")
+        row["notes"].append("No supported import-bound NodeVM construction candidate found; configuration, dependency presence and input trust remain unknown.")
+        rows.append(row)
+    return rows
+
+
+def load_source(path, root, budget, out):
+    budget.add_file()
+    relative = Path(path).resolve().relative_to(Path(root).resolve()).as_posix()
+    _bounded_text(relative, "Source relative path")
+    rows = scan_source_text(_read_bounded(path), relative)
+    budget.add_entries(len(rows))
+    out.extend(rows)
 
 
 class Budget:
@@ -520,10 +760,19 @@ def _validate_arguments(args):
         _bounded_text(version, "--version")
     if len(args.package_version) > MAX_ENTRIES:
         raise ValueError(f"A run is limited to {MAX_ENTRIES:,} inputs")
-    if len(args.inventory) + len(args.csv_list) > MAX_FILES:
+    if len(args.inventory) + len(args.csv_list) + len(args.source) > MAX_FILES:
         raise ValueError(f"A run is limited to {MAX_FILES} input files")
-    for path in (*args.inventory, *args.csv_list):
+    inputs = (*args.inventory, *args.csv_list, *args.source)
+    if args.source and args.source_root is None:
+        raise ValueError("--source requires --source-root for relative evidence paths")
+    if args.source_root is not None and not args.source_root.is_dir():
+        raise ValueError("--source-root must be a directory")
+    for path in inputs:
         _require_regular_file(path)
+    for path in args.source:
+        if path.suffix.lower() not in {".js", ".cjs", ".mjs", ".ts", ".cts", ".mts", ".jsx", ".tsx"}:
+            raise ValueError("Source must be an explicitly selected JS/TS file")
+        path.resolve().relative_to(args.source_root.resolve())
     if args.output is not None:
         output = args.output
         parent = output.parent
@@ -536,10 +785,10 @@ def _validate_arguments(args):
                 raise ValueError("Output is a dangling or looping symbolic link")
             if output.is_dir() or (output.exists() and not stat.S_ISREG(os.stat(output).st_mode)):
                 raise ValueError("Output must be a regular file path")
-            for path in (*args.inventory, *args.csv_list):
+            for path in inputs:
                 if os.path.samefile(output, path):
                     raise ValueError("--output must differ from every input file, even with --force")
-        for path in (*args.inventory, *args.csv_list):
+        for path in inputs:
             if os.path.realpath(output) == os.path.realpath(path):
                 raise ValueError("--output must differ from every input file, even with --force")
 
@@ -562,6 +811,10 @@ def main(argv=None):
                         help="JSON object or array of entries (see docs/REFERENCE.md); repeatable")
     parser.add_argument("--csv-list", action="append", default=[], type=Path, metavar="FILE",
                         help="CSV with a package_version column and optional label, build_source and precondition columns; repeatable")
+    parser.add_argument("--source", action="append", default=[], type=Path, metavar="FILE",
+                        help="Explicit JS/TS file for lexical NodeVM candidates; repeatable, never executed")
+    parser.add_argument("--source-root", type=Path, metavar="DIR",
+                        help="Required with --source; evidence paths are relative to this directory")
     parser.add_argument("--format", choices=("csv", "json", "html"), default="csv", help="Output format (default: csv)")
     parser.add_argument("--output", type=Path, help="Save report to a new file; default: stdout")
     parser.add_argument("--force", action="store_true", help="Replace an existing output file explicitly")
@@ -569,8 +822,8 @@ def main(argv=None):
     parser.add_argument("--fail-on-finding", action="store_true",
                         help="Exit 1 for potentially_affected results (errors still exit 2)")
     args = parser.parse_args(argv)
-    if not (args.package_version or args.inventory or args.csv_list):
-        parser.error("provide --version, --inventory or --csv-list")
+    if not (args.package_version or args.inventory or args.csv_list or args.source):
+        parser.error("provide --version, --inventory, --csv-list or --source")
     rows = []
     state = {"validated": False, "published": False, "stdout_started": False}
     options = {"force": args.force, "format": args.format, "brand": args.brand, "state": state}
@@ -587,6 +840,8 @@ def main(argv=None):
                 load_inventory(path, budget, rows)
             for path in args.csv_list:
                 load_csv_list(path, budget, rows)
+            for path in args.source:
+                load_source(path, args.source_root, budget, rows)
             save_report(args.output, rows, complete=True, **options)
         except KeyboardInterrupt:
             if not state["validated"]:

@@ -8,7 +8,7 @@ before changing this project.
 
 This repository covers only **CVE-2026-92935** (vm2 array-shaped require nesting escape). Its aliases
 refer to the same exploit. Keep unrelated vulnerabilities in separate repositories.
-The repository contains the offline checker `vm2_nesting_check.py`, synthetic tests and CI. Preserve the exact affected interval, disputed boundaries and reviewed fixed line; no network mode or application execution is implemented.
+The repository contains the offline checker `vm2_nesting_check.py`, synthetic tests and CI. Optional --source produces bounded lexical NodeVM candidates, never runtime configuration or taint proof. Preserve the exact affected interval, disputed boundaries and reviewed fixed line; no network mode or application execution is implemented.
 
 ## Project map
 
