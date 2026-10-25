@@ -1,4 +1,4 @@
-# Evidence and CLI reference
+# vm2-nesting-check
 
 Offline evidence checker for **CVE-2026-92935 — vm2 array-shaped require nesting escape**. Python 3.10+, standard library only. The executable can be copied alone. It never contacts websites, imports application code, runs a package manager, or executes exploit payloads.
 
@@ -36,7 +36,42 @@ The reviewed fixed line is `3.11.x`; future lines remain unknown rather than ext
 | `require_configuration_is_array_shaped` | require configuration is array-shaped |
 | `attacker_supplied_javascript_executed` | attacker-supplied JavaScript executed |
 
-Each observation is boolean or null, is unverified, and never changes the package-version result. No source search, taint analysis, reachability test, or runtime evaluation is performed. Absent observations do not establish mitigation.
+Each observation is boolean or null, is unverified, and never changes the package-version result. Optional source inspection produces separate lexical candidates. No taint analysis, reachability test or runtime evaluation is performed. Absent observations do not establish mitigation.
+
+## Source review candidates
+
+```sh
+python vm2_nesting_check.py --source examples/source.example.js --source-root examples --format json
+python vm2_nesting_check.py --version 3.11.6 --source examples/source.example.js --source-root examples --format html
+```
+
+Select files explicitly with repeatable `--source`; `--source-root` is required
+and all selected paths must resolve inside it. Nothing is traversed or executed.
+The scanner recognizes simple literal `vm2` CommonJS/ES imports, including
+destructuring aliases and namespace `.NodeVM` construction. For each `new`
+candidate it records the relative path/line, literal `nesting`, array/object or
+literal `require` shape, and a lexical association to `.run()` on a directly
+assigned variable. A string argument is not proof of trusted input; a variable
+argument is not proof of attacker control. Source rows always have status
+`unknown`, exploitability `not_tested` and unfilled operator preconditions.
+They never inherit a separately supplied version's assessment.
+
+This is a bounded lexical review aid, not an AST or binding/flow analysis.
+Shadowing, reassignment, execution order, computed imports/options, JSX/TS syntax,
+templates including interpolation and regex/division ambiguity need manual
+review. When no supported match is found, the report includes an unknown
+coverage row, never an absence or mitigation verdict. Spreads, duplicate/computed keys, dynamic options
+and option expressions exceeding 4,096 tokens keep their shapes unknown.
+
+Source shares the existing 4 MiB/file, 100-file and 10,000-result budgets, with
+an additional 200,000-token/file limit. Reports contain relative locations and
+shape labels, without source snippets or source string contents. Work from
+stable copies; ordinary file checks are not a filesystem sandbox. Selected
+source files and their aliases remain protected from `--output --force`.
+CSV/JSON report schema 1.1 adds `source_path`, `source_line`, `source_nesting`,
+`source_require`, `source_run_argument` and `source_coverage`; HTML includes these
+candidates in its evidence notes. Source candidates do not trigger the version
+finding gate by themselves.
 
 ## Evidence and reports
 
@@ -51,6 +86,10 @@ Exit 0: completed run; 1: potentially affected with `--fail-on-finding`; 2: argu
 - https://github.com/patriksimek/vm2/security/advisories/GHSA-8hr7-r645-pc6w
 - https://github.com/advisories/GHSA-8hr7-r645-pc6w
 
-[Synthetic report](docs/example-report.html), [reference](docs/REFERENCE.md), [implementation status](docs/IMPLEMENTATION.md), [AGENTS](AGENTS.md), [contribution terms](CONTRIBUTING.md), [security policy](SECURITY.md), [license](LICENSE), [dual licensing](LICENSING.md). Bounded input and reporting helpers are bundled from the reviewed Node.js checker at `74aa57ba5df05c34d17ae67912cd26ec2335201b`, with package-specific range comparison and the mixed-whitespace CSV fix. No companion repository is needed at runtime.
+[Synthetic report](example-report.html), [reference](REFERENCE.md), [implementation status](IMPLEMENTATION.md), [AGENTS](../AGENTS.md), [contribution terms](../CONTRIBUTING.md), [security policy](../SECURITY.md), [license](../LICENSE), [dual licensing](../LICENSING.md). Bounded input and reporting helpers are bundled from the reviewed Node.js checker at `74aa57ba5df05c34d17ae67912cd26ec2335201b`, with package-specific range comparison and the mixed-whitespace CSV fix. No companion repository is needed at runtime.
 
 CSV `record_type=result` rows are asset observations. A zero-result report has a `record_type=summary` row carrying completeness, schema, rule date, CVE and `not_tested`; it is not an asset finding.
+
+CSV rejects NUL characters before writing a report. An interruption after a complete report is published preserves that report and exits 130.
+
+If an interrupt leaves file publication indeterminate, the checker exits 130 without retrying. Inspect the output before retrying; the diagnostic does not establish whether publication succeeded.

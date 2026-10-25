@@ -36,7 +36,42 @@ The reviewed fixed line is `3.11.x`; future lines remain unknown rather than ext
 | `require_configuration_is_array_shaped` | require configuration is array-shaped |
 | `attacker_supplied_javascript_executed` | attacker-supplied JavaScript executed |
 
-Each observation is boolean or null, is unverified, and never changes the package-version result. No source search, taint analysis, reachability test, or runtime evaluation is performed. Absent observations do not establish mitigation.
+Each observation is boolean or null, is unverified, and never changes the package-version result. Optional source inspection produces separate lexical candidates. No taint analysis, reachability test or runtime evaluation is performed. Absent observations do not establish mitigation.
+
+## Source review candidates
+
+```sh
+python vm2_nesting_check.py --source examples/source.example.js --source-root examples --format json
+python vm2_nesting_check.py --version 3.11.6 --source examples/source.example.js --source-root examples --format html
+```
+
+Select files explicitly with repeatable `--source`; `--source-root` is required
+and all selected paths must resolve inside it. Nothing is traversed or executed.
+The scanner recognizes simple literal `vm2` CommonJS/ES imports, including
+destructuring aliases and namespace `.NodeVM` construction. For each `new`
+candidate it records the relative path/line, literal `nesting`, array/object or
+literal `require` shape, and a lexical association to `.run()` on a directly
+assigned variable. A string argument is not proof of trusted input; a variable
+argument is not proof of attacker control. Source rows always have status
+`unknown`, exploitability `not_tested` and unfilled operator preconditions.
+They never inherit a separately supplied version's assessment.
+
+This is a bounded lexical review aid, not an AST or binding/flow analysis.
+Shadowing, reassignment, execution order, computed imports/options, JSX/TS syntax,
+templates including interpolation and regex/division ambiguity need manual
+review. When no supported match is found, the report includes an unknown
+coverage row, never an absence or mitigation verdict. Spreads, duplicate/computed keys, dynamic options
+and option expressions exceeding 4,096 tokens keep their shapes unknown.
+
+Source shares the existing 4 MiB/file, 100-file and 10,000-result budgets, with
+an additional 200,000-token/file limit. Reports contain relative locations and
+shape labels, without source snippets or source string contents. Work from
+stable copies; ordinary file checks are not a filesystem sandbox. Selected
+source files and their aliases remain protected from `--output --force`.
+CSV/JSON report schema 1.1 adds `source_path`, `source_line`, `source_nesting`,
+`source_require`, `source_run_argument` and `source_coverage`; HTML includes these
+candidates in its evidence notes. Source candidates do not trigger the version
+finding gate by themselves.
 
 ## Evidence and reports
 
