@@ -295,6 +295,8 @@ def _js_tokens(text):
             while index < len(text) and text[index].isascii() and (text[index].isalnum() or text[index] in "_$"):
                 index += 1
             value = text[start:index]
+        elif text.startswith("=>", index):
+            value, index = "=>", index + 2
         elif text.startswith("...", index):
             value, index = "...", index + 3
         else:
