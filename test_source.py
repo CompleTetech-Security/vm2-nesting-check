@@ -23,6 +23,13 @@ class SourceTests(unittest.TestCase):
             code = c.main(list(args))
         return code, out.getvalue(), err.getvalue()
 
+    def test_javascript_line_terminators_preserve_comment_boundaries(self):
+        for ending in ("\n", "\r\n", "\r", "\u2028", "\u2029"):
+            with self.subTest(ending=repr(ending)):
+                rows = self.scan(("// comment\n" + "import {NodeVM} from 'vm2';\nnew NodeVM({nesting:true});").replace("\n", ending))
+                self.assertEqual("lexical_source_candidate", rows[0]["evidence_type"])
+                self.assertEqual(3, rows[0]["source_line"])
+
     def test_import_bound_aliases_and_namespace_imports(self):
         for binding, constructor in [
             ("const {NodeVM} = require('vm2');", "NodeVM"),
