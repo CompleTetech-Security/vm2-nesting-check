@@ -84,7 +84,7 @@ class SourceTests(unittest.TestCase):
 
     def test_run_argument_shape_is_never_trust_or_taint(self):
         prefix = "const {NodeVM} = require('vm2'); const sandbox = new NodeVM({nesting:true, require:[]});"
-        for expression, expected in [("'static text'", "literal_string"), ("request.body.code", "dynamic_or_unsupported"), ("trustedCode", "dynamic_or_unsupported"), ("`template`", "dynamic_or_unsupported")]:
+        for expression, expected in [("'static text'", "literal_string"), ("'vm2'", "literal_string"), ("'nesting'", "literal_string"), ("'require'", "literal_string"), ("'prefix' + request.body.code", "dynamic_or_unsupported"), ("'literal', 'filename'", "literal_string"), ("request.body.code", "dynamic_or_unsupported"), ("trustedCode", "dynamic_or_unsupported"), ("`template`", "dynamic_or_unsupported")]:
             row = self.scan(prefix + "sandbox.run(" + expression + ");")[0]
             self.assertEqual(expected, row["source_run_argument"])
             self.assertEqual("not_reported", row["precondition_attacker_supplied_javascript_executed"])
