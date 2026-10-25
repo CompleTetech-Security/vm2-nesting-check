@@ -415,7 +415,10 @@ def scan_source_text(text, relative_path):
     runs = {}
     for index in range(len(values) - 4):
         if values[index + 1:index + 4] == [".", "run", "("]:
-            shape = "literal_string" if values[index + 4] == "@string" else "dynamic_or_unsupported"
+            first = index + 4
+            quoted = values[first] in {"@string", "@vm2", "@nesting", "@require"}
+            single = first + 1 == pairs[index + 3] or (first + 1 < len(values) and values[first + 1] == ",")
+            shape = "literal_string" if quoted and single else "dynamic_or_unsupported"
             runs.setdefault(values[index], set()).add(shape)
     rows = []
     for index, value in enumerate(values[:-2]):
