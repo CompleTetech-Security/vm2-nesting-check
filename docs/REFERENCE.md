@@ -88,7 +88,15 @@ Exit 0: completed run; 1: potentially affected with `--fail-on-finding`; 2: argu
 
 [Synthetic report](example-report.html), [reference](REFERENCE.md), [implementation status](IMPLEMENTATION.md), [AGENTS](../AGENTS.md), [contribution terms](../CONTRIBUTING.md), [security policy](../SECURITY.md), [license](../LICENSE), [dual licensing](../LICENSING.md). Bounded input and reporting helpers are bundled from the reviewed Node.js checker at `74aa57ba5df05c34d17ae67912cd26ec2335201b`, with package-specific range comparison and the mixed-whitespace CSV fix. No companion repository is needed at runtime.
 
-CSV `record_type=result` rows are asset observations. A zero-result report has a `record_type=summary` row carrying completeness, schema, rule date, CVE and `not_tested`; it is not an asset finding.
+Every format retains the checker name/version and one UTC ISO-8601 `generated_at`
+value captured at the start of the run, including interruption recovery. CSV
+repeats `tool`, `tool_version` and `generated_at` on every result or summary row;
+JSON retains them in its envelope and HTML displays them in the header/footer.
+The timestamp describes report generation, not when supplied inventory was
+collected or whether a deployment is patched. `rules_as_of` remains the separate
+advisory review date, and `report_schema_version` identifies the output contract.
+
+CSV `record_type=result` rows are asset observations. A zero-result report has a `record_type=summary` row carrying this provenance, completeness, schema, rule date, CVE and `not_tested`; it is not an asset finding. Interrupted result and summary rows keep `report_complete=false`.
 
 CSV rejects NUL characters before writing a report. An interruption after a complete report is published preserves that report and exits 130.
 

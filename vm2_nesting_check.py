@@ -148,7 +148,8 @@ OBSERVATIONS = {True: "reported_true", False: "reported_false", None: "not_repor
 INVENTORY_FIELDS = {"schema_version", "package", "label", "package_version", "build_source", *PRECONDITION_KEYS}
 CSV_COLUMNS = ["record_type", "input_label", "input_source", "package_version", "build_source", "status", "version_status", "fixed_version",
                "exploitability", "evidence_type", "evidence_confidence", "cve", "rules_as_of", *[f"precondition_{key}" for key in PRECONDITION_KEYS],
-               "recommendation", "notes", "sources", "report_schema_version", "report_complete"]
+               "recommendation", "notes", "sources", "report_schema_version", "report_complete",
+               "tool", "tool_version", "generated_at"]
 SOURCE_COLUMNS = ["source_path", "source_line", "source_nesting", "source_require", "source_run_argument", "source_coverage"]
 CSV_COLUMNS += SOURCE_COLUMNS
 STATUS_ORDER = {"potentially_affected": 0, "unknown": 2, "fixed_version_reported": 3}
@@ -612,11 +613,16 @@ a{color:var(--accent-text)}details{max-width:430px}summary{cursor:pointer;color:
 """
 
 
+def utc_now():
+    """UTC report generation time; independent of advisory/evidence dates."""
+    return datetime.now(timezone.utc).isoformat()
+
+
 def render_html(rows, *, brand="CompleteTech LLC", generated_at=None, complete=True):
     def esc(value):
         return html.escape("" if value is None else str(value), quote=True)
 
-    generated_at = generated_at or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    generated_at = utc_now() if generated_at is None else generated_at
     rows = sorted(rows, key=lambda row: STATUS_ORDER.get(row.get("status"), 2))
     counts = {key: sum(row.get("status") == key for row in rows) for key in STATUS_ORDER}
     tiles = [("", len(rows), "Inputs assessed"), ("bad", counts["potentially_affected"], "Potentially affected"),
@@ -662,25 +668,29 @@ Vendor and custom builds require vendor evidence because fixes may be backported
 """
 
 
-def write_report(output, rows, *, format="csv", brand="CompleteTech LLC", complete=True):
+def write_report(output, rows, *, format="csv", brand="CompleteTech LLC", complete=True, generated_at=None):
+    generated_at = utc_now() if generated_at is None else generated_at
     if format == "csv":
+        provenance = {key: csv_safe(value) for key, value in
+                      {"tool": TOOL_NAME, "tool_version": TOOL_VERSION, "generated_at": generated_at}.items()}
         # QUOTE_ALL keeps a bare CR/LF/TAB inside a quoted cell, so it can never start a new row.
         writer = csv.DictWriter(output, fieldnames=CSV_COLUMNS, lineterminator="\n", quoting=csv.QUOTE_ALL)
         writer.writeheader()
         for row in rows:
-            writer.writerow({**{key: csv_safe(row.get(key)) for key in CSV_COLUMNS}, "record_type": "result", "report_complete": "true" if complete else "false"})
+            writer.writerow({**{key: csv_safe(row.get(key)) for key in CSV_COLUMNS}, **provenance,
+                             "record_type": "result", "report_complete": "true" if complete else "false"})
         if not rows:
-            writer.writerow({"record_type": "summary", "report_complete": "true" if complete else "false",
+            writer.writerow({**provenance, "record_type": "summary", "report_complete": "true" if complete else "false",
                              "report_schema_version": REPORT_SCHEMA_VERSION, "rules_as_of": RULES_DATE,
                              "cve": CVE_ID, "exploitability": "not_tested"})
     elif format == "json":
         json.dump({"tool": TOOL_NAME, "tool_version": TOOL_VERSION, "report_schema_version": REPORT_SCHEMA_VERSION,
                    "cve": CVE_ID, "rules_as_of": RULES_DATE, "sources": list(SOURCES), "complete": complete,
-                   "generated_at": datetime.now(timezone.utc).isoformat(), "results": rows},
+                   "generated_at": generated_at, "results": rows},
                   output, ensure_ascii=False, indent=2)
         output.write("\n")
     else:
-        output.write(render_html(rows, brand=brand, complete=complete))
+        output.write(render_html(rows, brand=brand, complete=complete, generated_at=generated_at))
 
 
 def render_report(rows, **options):
@@ -821,7 +831,8 @@ def main(argv=None):
                         help="Explicit JS/TS file for lexical NodeVM candidates; repeatable, never executed")
     parser.add_argument("--source-root", type=Path, metavar="DIR",
                         help="Required with --source; evidence paths are relative to this directory")
-    parser.add_argument("--format", choices=("csv", "json", "html"), default="csv", help="Output format (default: csv)")
+    parser.add_argument("--format", choices=("csv", "json", "html"), default="csv",
+                        help="Output format (default: csv); all formats retain UTC generation time and checker identity")
     parser.add_argument("--output", type=Path, help="Save report to a new file; default: stdout")
     parser.add_argument("--force", action="store_true", help="Replace an existing output file explicitly")
     parser.add_argument("--brand", default="CompleteTech LLC", help="Organization name for the HTML report (at most 512 characters)")
@@ -835,6 +846,7 @@ def main(argv=None):
     options = {"force": args.force, "format": args.format, "brand": args.brand, "state": state}
     try:
         try:
+            options["generated_at"] = utc_now()
             _validate_arguments(args)
             state["validated"] = True
             observations = {key: _tri_state(getattr(args, key), key, text=True) for key in PRECONDITION_KEYS}
