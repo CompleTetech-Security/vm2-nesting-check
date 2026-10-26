@@ -97,7 +97,7 @@ Notes on the boundaries:
 - Future lines remain unknown rather than extrapolating a patch claim, and versions outside the exact affected interval remain unknown, including older releases that might have other flaws.
 - The database maps this CVE to the canonical GHSA; the maintainer page still shows no known CVE. The report's September 17 date is not the canonical publication date.
 - A leading `v` is accepted (`v3.11.7`). Missing, conflicting, malformed, prerelease, qualified, custom/vendor builds remain `unknown`.
-- `--build-source` (or the `build_source` field) of `unknown` (the default), `upstream` or `official` is compared as upstream. Any other value, such as a vendor name, yields `unknown` because it needs independent patch evidence.
+- `--build-source` (or the `build_source` field) of blank, `unknown` (the default), `upstream`, `official` or `official_upstream` is compared as upstream. Any other value, such as a vendor name, yields `unknown` because it needs independent patch evidence.
 
 ## Inputs
 
