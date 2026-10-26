@@ -209,7 +209,7 @@ A more specific `version_status` accompanies each row: `in_documented_affected_r
 | --- | --- |
 | `0` | Run completed. |
 | `1` | At least one `potentially_affected` result, only with `--fail-on-finding`. `unknown` never counts as a finding-gate failure, and never as a clean result. |
-| `2` | Argument, input or output error: an operational failure, not an assessment result. Nothing was assessed or the report was not written. |
+| `2` | Usage, input, output or cleanup failure (an operational error, not an assessment result). This does not establish whether report bytes were already written; inspect the output before retrying. |
 | `130` | Interrupted. Completed observations are written with `complete=false` when possible. |
 
 Interruption behavior:
